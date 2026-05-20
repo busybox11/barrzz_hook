@@ -13,3 +13,9 @@ export function getReactProps(element: Element) {
   if (!key) return null;
   return (element as any)[key];
 }
+
+export function getReactFiber(element: Element) {
+  const key = Object.keys(element).find((k) => k.startsWith("__reactFiber$"));
+  if (!key) return null;
+  return (element as any)[key];
+}

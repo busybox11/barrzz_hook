@@ -1,42 +1,117 @@
-import { getReactInstance } from "./lib/inject";
-import "./lib/intercept";
+import { getReactFiber } from "./lib/inject";
+import { AlbumsEventsRqResponse, setupFetchHook } from "./lib/intercept";
 
-function handleRarityRowMounted(element: HTMLElement) {
+let myAlbums: string[] = [];
+let mySessionId: string | null = null;
+const sessionsByAlbum: Map<string, Array<AlbumsEventsRqResponse>> = new Map();
+
+let albumsEvents: AlbumsEventsRqResponse = [];
+setupFetchHook({
+  onAlbumEventsRq: (rq, date) => {
+    albumsEvents = rq;
+    onDateKnown(date);
+  },
+})();
+
+function onDateKnown(date: string) {
+  console.log("Date known:", date);
+  const sessionDataString = localStorage.getItem(`rapodoku_${date}`);
+  if (!sessionDataString) return;
+  let sessionData: {
+    placements: Array<{
+      id: string;
+      name: string;
+      artist: {
+        id: string;
+        name: string;
+        picture_url: string;
+      };
+      cover_art_url: string;
+      release_date_components: {
+        year: number;
+        month: number;
+        day: number;
+      };
+    }>;
+    errors: number;
+    errorLog: Array<{
+      cellIdx: number;
+      albumName: string;
+      albumCover: string;
+      reasons: string[];
+    }>;
+    completed: boolean;
+    failed: boolean;
+    startReported: boolean;
+    sessionId: string;
+  };
+
+  try {
+    sessionData = JSON.parse(sessionDataString);
+
+    mySessionId = sessionData.sessionId;
+    myAlbums = sessionData.placements.map((placement) => placement.id);
+
+    matchSessionIdToAlbums();
+  } catch (e) {
+    console.error("Failed to parse sessionDataString:", e);
+    return;
+  }
+}
+
+function getAlbumsForSessionId(sessionId: string) {
+  return albumsEvents
+    .filter((event) => event.session_id === sessionId)
+    .map((event) => event);
+}
+
+function getSessionIdsForAlbum(album: string) {
+  return albumsEvents
+    .filter((event) => event.album_id === album)
+    .map((event) => event.session_id);
+}
+
+function matchSessionIdToAlbums() {
+  if (!myAlbums.length) return;
+  if (!mySessionId) return;
+
+  for (const album of myAlbums) {
+    const sessionIds = getSessionIdsForAlbum(album).filter(
+      (sessionId) => sessionId !== mySessionId,
+    );
+    if (!sessionIds.length) continue;
+
+    const otherSessionsData = sessionIds.map((sessionId) =>
+      getAlbumsForSessionId(sessionId),
+    );
+    sessionsByAlbum.set(album, otherSessionsData);
+  }
+  console.log("Sessions per album:", sessionsByAlbum);
+}
+
+function handleRarityItemHook(element: HTMLElement) {
   queueMicrotask(() => {
-    const fiber = getReactInstance(element);
-    if (!fiber) {
-      console.warn("Could not find React Fiber for element:", element);
-      return;
-    }
+    // get album id from element fiber props key
+    const fiber = getReactFiber(element);
 
-    const currentProps = fiber.memoizedProps;
-    if (currentProps) {
-      console.log("Component Props:", currentProps);
+    const albumId = fiber?.key;
+    if (!albumId) return;
 
-      // Monkey-patch an onClick handler if it exists
-      if (currentProps.onClick) {
-        const originalOnClick = currentProps.onClick;
-        currentProps.onClick = function (...args: any[]) {
-          console.log(".rarity-row clicked! Intercepted args:", args);
-          return originalOnClick.apply(this, args);
-        };
-      }
-    }
+    // don't render hook elem if album is not in sessionsPerAlbum
+    const otherSessionsData = sessionsByAlbum.get(albumId as string);
+    if (!otherSessionsData) return;
 
-    let updateQueue = fiber.memoizedState;
-    while (updateQueue) {
-      if (updateQueue.queue?.dispatch) {
-        const originalDispatch = updateQueue.queue.dispatch;
-        updateQueue.queue.dispatch = function (...args: any[]) {
-          console.log("State change intercepted inside .rarity-row:", args);
-          // You can modify args[0] here to change state values before React processes them!
-          return originalDispatch.apply(this, args);
-        };
-      }
-      updateQueue = updateQueue.next;
-    }
+    // render hook elem
+    const hookElement = document.createElement("div");
+    hookElement.className = "album-others-hook-elem";
 
-    element.style.border = "2px dashed #8b5cf6";
+    const plural = otherSessionsData.length > 1 ? "s" : "";
+    hookElement.innerHTML = `${otherSessionsData.length} autre${plural}`;
+
+    const pctElem = element.querySelector(".rarity-pct-block");
+    if (!pctElem) return;
+
+    pctElem.before(hookElement);
   });
 }
 
@@ -47,11 +122,11 @@ function startDOMObserver() {
         if (!(node instanceof HTMLElement)) return;
 
         if (node.matches(".rarity-row")) {
-          handleRarityRowMounted(node);
+          handleRarityItemHook(node);
         }
 
         const nestedRows = node.querySelectorAll(".rarity-row");
-        nestedRows.forEach((row) => handleRarityRowMounted(row as HTMLElement));
+        nestedRows.forEach((row) => handleRarityItemHook(row as HTMLElement));
       });
     }
   });
