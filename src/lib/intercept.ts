@@ -11,6 +11,14 @@ type AlbumsEventsRqExpectedParams = {
 };
 */
 
+type AlbumsEventsRqResponseItem = {
+  album_id: string;
+  album_name: string;
+  artist_name: string;
+  artist_id: string;
+};
+type AlbumsEventsRqResponse = AlbumsEventsRqResponseItem[];
+
 const INTERCEPT_URL_MATCH =
   /:\/\/[^\/]*\.supabase\.co\/rest\/v1\/album_events\b/;
 
@@ -26,8 +34,10 @@ unsafeWindow.fetch = async (...args: Parameters<typeof originalFetch>) => {
   if (typeof url === "string" && INTERCEPT_URL_MATCH.test(url)) {
     console.log("Response from album_events:", response);
     const rqClone = response.clone();
-    const rqCloneBody = await rqClone.json();
+
+    const rqCloneBody = (await rqClone.json()) as AlbumsEventsRqResponse;
     console.log("Response body:", rqCloneBody);
+
     return response;
   }
 
