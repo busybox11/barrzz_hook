@@ -16,6 +16,27 @@ export function ensureModalHost() {
   modalRoot.render(<SessionModalHost />);
 }
 
+export function unmountHookButton(container: HTMLElement) {
+  const root = hookRoots.get(container);
+  if (root) {
+    root.unmount();
+    hookRoots.delete(container);
+  }
+  if (container.isConnected) {
+    container.remove();
+  }
+}
+
+export function unmountAllHookButtons() {
+  document
+    .querySelectorAll(".album-others-hook-elem")
+    .forEach((el) => unmountHookButton(el as HTMLElement));
+
+  document.querySelectorAll('.rarity-row[data-barrzz-hook-mounted="true"]').forEach((el) => {
+    delete (el as HTMLElement).dataset.barrzzHookMounted;
+  });
+}
+
 export function mountHookButton(
   container: HTMLElement,
   albumId: string,

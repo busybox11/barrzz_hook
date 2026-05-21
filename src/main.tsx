@@ -1,6 +1,7 @@
 import { getReactFiber } from "./lib/inject";
 import { setupFetchHook } from "./lib/intercept";
-import { mountHookButton } from "./lib/mount";
+import { mountHookButton, unmountAllHookButtons, unmountHookButton } from "./lib/mount";
+import { closeSessionModal } from "./lib/modalStore";
 import {
   getOtherSessionsForAlbum,
   loadSessionFromStorage,
@@ -13,6 +14,39 @@ setupFetchHook({
     loadSessionFromStorage(date);
   },
 })();
+
+function cleanupRemovedHookContainers(node: Node) {
+  if (!(node instanceof HTMLElement)) return;
+
+  const containers: HTMLElement[] = [];
+  if (node.classList.contains("album-others-hook-elem")) {
+    containers.push(node);
+  }
+  node.querySelectorAll(".album-others-hook-elem").forEach((el) => {
+    containers.push(el as HTMLElement);
+  });
+  containers.forEach(unmountHookButton);
+}
+
+function onPageNavigation() {
+  unmountAllHookButtons();
+  closeSessionModal();
+}
+
+function installNavigationListener() {
+  const notify = () => onPageNavigation();
+
+  window.addEventListener("popstate", notify);
+
+  for (const method of ["pushState", "replaceState"] as const) {
+    const original = history[method].bind(history);
+    history[method] = (...args) => {
+      const result = original(...args);
+      notify();
+      return result;
+    };
+  }
+}
 
 function handleRarityItemHook(element: HTMLElement) {
   if (element.dataset.barrzzHookMounted === "true") return;
@@ -40,6 +74,8 @@ function handleRarityItemHook(element: HTMLElement) {
 function startDOMObserver() {
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
+      mutation.removedNodes.forEach(cleanupRemovedHookContainers);
+
       mutation.addedNodes.forEach((node) => {
         if (!(node instanceof HTMLElement)) return;
 
@@ -61,7 +97,11 @@ function startDOMObserver() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", startDOMObserver);
+  document.addEventListener("DOMContentLoaded", () => {
+    startDOMObserver();
+    installNavigationListener();
+  });
 } else {
   startDOMObserver();
+  installNavigationListener();
 }
