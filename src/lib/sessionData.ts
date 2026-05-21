@@ -38,7 +38,7 @@ function dedupeSessionAlbums(events: AlbumsEventsRqResponseItem[]) {
     }
   }
 
-  return deduped.sort((a, b) => b.cell_idx - a.cell_idx);
+  return deduped.sort((a, b) => a.cell_idx - b.cell_idx);
 }
 
 function getAlbumsForSessionId(sessionId: string) {
