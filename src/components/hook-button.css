@@ -1,0 +1,22 @@
+.barrzz-hook-button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  opacity: 0.75;
+  padding: 4px 10px;
+  margin-right: 4px;
+  border-radius: 4px;
+  background: #2a2a2a;
+  color: #e8e8e8;
+}
+
+.barrzz-hook-button:hover {
+  opacity: 0.75;
+}
+
+.barrzz-hook-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
